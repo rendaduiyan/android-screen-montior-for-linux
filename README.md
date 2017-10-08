@@ -9,6 +9,8 @@ With that in mind, we can start to connect adb service (installed from android p
   
   
   adb -> | adb_client -> gstreamer udpsink | -> |gstreamer udpsrc -> gstreamer xoverlay|
+         
+         
          |             asm                 |    |                 player               |
   
 
