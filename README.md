@@ -39,7 +39,7 @@ Developing environment:
  All socket reading and writing are in aysnc mode - gio async apis are called instead of blocking ones. All callbacks are paid espeicial attention. For example, callback "channel_read_cb" g_io_add_watch will allocate a reading buffer for g_input_stream_read_async and pass buffer pointer as the parameter for the callback "read_cb". The latter will take the responsibility to free the allocated buffer when the message processing is done.
  
  GStreamer:
- Current smart phones have 1080x1920 resolution (or above) by default, in most cases we don't want to display such a high resolution. In gstreamer we need videoconvert and video scale to do that. We can display the screen either on the local machine or on a remote one (not configurable for now, minor change is needed, by setting the host for udpsrc and udpsink). So udpsink and udpsrc are introduced. More than that, we can start multiple asm instances to get the screenshot and interlace them in the player .
+ Current smart phones have 1080x1920 resolution (or above) by default, in most cases we don't want to display such a high resolution. In gstreamer we need videoconvert and video scale to do that. We can display the screen either on the local machine or on a remote one (not configurable for now, minor change is needed, by setting the host for udpsrc and udpsink). So udpsink and udpsrc are introduced. More than that, we can start multiple asm instances to get the screenshot and interlace them in the player ; on the other hand, the screenshot can be multicasted.
  
  Typical CPU and memory usage:
  
