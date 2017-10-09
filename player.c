@@ -1,3 +1,10 @@
+/*
+ * player.c, a player in gstreamer for Linux PC to display the continous sceenshot frame buffer
+ * 
+ * Copyright (c) 2017, haibolei <duiyanrenda@gmail.com>
+ * 
+ */
+
 #include <string.h>
 #include <gst/gst.h>
 #include <gtk/gtk.h>
@@ -76,7 +83,7 @@ void create_gui (PlayerData *player)
     g_signal_connect (G_OBJECT (main_window), "delete-event", G_CALLBACK (delete_event_cb), player);
 
     GtkWidget *video_window = gtk_drawing_area_new ();
-    gtk_widget_set_size_request (video_window, 540, 720);
+    gtk_widget_set_size_request (video_window, 540, 700);
     gtk_widget_set_double_buffered (video_window, FALSE);
     g_signal_connect (video_window, "realize", G_CALLBACK (realize_cb), player);
     g_signal_connect (video_window, "expose_event", G_CALLBACK (draw_cb), player);
@@ -306,6 +313,7 @@ int main (int argc, char **argv)
 
     gtk_main ();
     release_player (player);
+    g_free (player);
 
     return 0;
 }

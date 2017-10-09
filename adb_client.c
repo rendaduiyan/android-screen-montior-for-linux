@@ -1,3 +1,10 @@
+/*
+ * adb_client.c, an adb client in glib for Linux PC to talk with adb service
+ * 
+ * Copyright (c) 2017, haibolei <duiyanrenda@gmail.com>
+ * 
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,6 +131,13 @@ void screenshot_routine (MyContext *ctx)
                     GList *head = g_list_first (ctx->dev_list);
                     if (NULL != head)
                     {
+                        /*
+                         * don't know if it's useful to give out a device list
+                         * current case is to monitor the first one (assumed only one 
+                         * device connected)
+                         * We need to change the logic to wait the choice from GUI if 
+                         * that's the case
+                         */
                         ctx->serial = (GString *) head->data;
                         AdbMessage *transport_device  = create_adb_request (ctx, 
                                                          ADBP_TRANSPORT_DEVICE);
@@ -139,6 +153,12 @@ void screenshot_routine (MyContext *ctx)
 
                 case ADBP_TRANSPORT_DEVICE:
                 {
+                    /*
+                     * transport device command is used quite often
+                     * we need its next_msg to tell what to do next
+                     * if necessary, we need to check if its next_msg is NULL
+                     * 
+                     */
                     g_debug ("transport device\n");
                     AdbMessage *next_msg = create_adb_request (ctx,
                                                      ctx->next_req);
@@ -148,22 +168,38 @@ void screenshot_routine (MyContext *ctx)
                 }
                 case ADBP_FRAMEBUFFER:
                 {
+                    /*
+                     * just for tracking, no action required
+                     */
                     g_message ("frame buffer");
                     
                     break;
                 }
                 case ADBP_IMAGE_HEADER:
                 {
+                    /*
+                     * just for tracking, no action required
+                     */
                     g_debug ("image header\n");
                     break;
                 }
                 case ADBP_IMAGE_DATA:
                 {
+                    /*
+                     * just for tracking, no action required
+                     */
                     g_debug ("image data\n");
                     break;
                 }
                 case ADBP_ONEFRAME_DONE:
                 {
+                    /*
+                     * till now, one frame is got
+                     * start the next one
+                     * since we have the device list for now
+                     * we don't need to start it over
+                     * we can request frame buffer after transport
+                     */
                     g_debug ("one frame");
                     AdbMessage *transport_device  = create_adb_request (ctx, 
                                                          ADBP_TRANSPORT_DEVICE);
@@ -191,6 +227,11 @@ void screenshot_routine (MyContext *ctx)
         }
         case QUITTING:
         {
+            /*
+             * reserved for future purpose
+             * in some cases, we may get some control message from peers
+             * to notify the quit
+             */
             g_debug ("normal quit ...");
             break;
         }
@@ -212,6 +253,10 @@ void my_quit (MyContext *ctx)
 
 gboolean is_okay (guint8 *buf, gchar *ok_str)
 {
+    /*
+     * for now, the ok_str is always OKAY
+     * but we don't want to hard-code it
+     */
     gboolean isok = FALSE;
     gsize len = strlen (ok_str);
     gsize i = 0;
@@ -229,6 +274,10 @@ gboolean is_okay (guint8 *buf, gchar *ok_str)
 
 gboolean is_fail (guint8 *buf)
 {
+    /*
+     * we don't find cases with failed string other than FAIL
+     * it's better to change like is_okay
+     */ 
     return buf[0] == 'F' && buf[1] == 'A' && buf[2] == 'I' && buf[3] == 'L';
 }
 
@@ -376,8 +425,12 @@ void cleanup_devlist (GList **list)
 void handle_track_devices_serial (MyContext *ctx, guint8 *buf, gsize size)
 {
     /*
-     * if thise handler is called,
-     * OKAY is always got
+     * typically, device serial is got in the first response message 
+     * for "track-devices"
+     * however, we found the case that "OKAY" and serial are separated into 2 messages
+     * 
+     * if this handler is called,
+     * OKAY is always got previously
      */
     gsize bytes_left = size;
     gsize msg_len = 0;
@@ -488,26 +541,31 @@ void dump_header (ImageHeader *header)
 void handle_image_data (MyContext *ctx, guint8 *buf, gsize size)
 {
     //dump_buffer (buf, 64, FALSE);
-    g_info ("continuing copy image data... %u : %u\n", ctx->image_offset, ctx->image_header->size);
+    g_info ("continuing copy image data... %u : %u\n", 
+        ctx->image_offset, ctx->image_header->size);
     ctx->state = RESPONSE_OKAY;
     memcpy (&ctx->raw_image[ctx->image_offset], buf, size);
     ctx->image_offset += size;
     if (ctx->image_offset < ctx->image_header->size)
     {
-        
-        //push_data (ctx->sink, buf, size);
         ctx->state = REQUEST_SENDED; //waiting next one
     }
     else
     {
         ctx->end_time = g_get_real_time () / 1000;
-        g_message ("it cost %03lld (ms) to get one frame\n", ctx->end_time - ctx->start_time);
+        g_message ("it cost %03lld (ms) to get one frame\n", 
+            ctx->end_time - ctx->start_time);
         
         /*
+         * we don't need to free the raw_image 
          * gstreamer pipeline should do it
          */
-        //g_free (ctx->raw_image);
         push_data (ctx->sink, ctx->raw_image, ctx->image_header->size);
+        /*
+         * free the header data
+         * assumed header info will be sent again in the first response message 
+         * of frame buffer request
+         */
         g_free (ctx->image_header);
         ctx->image_header = NULL;
         ctx->req = ADBP_ONEFRAME_DONE;
@@ -526,7 +584,6 @@ gchar* get_format_from_header (ImageHeader *header)
     * default format
     */
     gchar *format = default_format;
-    //gchar *format = g_strdup ("RGBA");
     /*
      * only version for now
      */
@@ -615,13 +672,13 @@ void handle_image_header (MyContext *ctx, guint8 *buf, gsize size)
             NULL);
 
         GstCaps *scale_caps = gst_caps_new_simple ("video/x-raw",
-        "format", G_TYPE_STRING, "I420",                   //for udp forwarding
-        "width", G_TYPE_INT, ctx->image_header->width / 2,
-        "height", G_TYPE_INT, 
-            gst_util_uint64_scale_int_round (ctx->image_header->width / 2, 
-            ctx->image_header->height, ctx->image_header->width),
-        "framerate", GST_TYPE_FRACTION, 30, 1,
-        NULL);
+            "format", G_TYPE_STRING, "I420",                   //for udp forwarding
+            "width", G_TYPE_INT, ctx->image_header->width / 2,
+            "height", G_TYPE_INT, 
+                gst_util_uint64_scale_int_round (ctx->image_header->width / 2, 
+                ctx->image_header->height, ctx->image_header->width),
+            "framerate", GST_TYPE_FRACTION, 30, 1,
+            NULL);
         g_object_set (ctx->sink->appsrc, "caps", video_caps, NULL);
         g_object_set (ctx->sink->caps_filter, "caps", scale_caps, NULL);
 
@@ -658,7 +715,7 @@ void handle_status_fail (MyContext *ctx, guint8 *buf, gsize size)
         }
         else
         {
-            g_debug ("unexpected bufferframe message");
+            g_debug ("unexpected message");
         }
     }
     else
@@ -715,50 +772,54 @@ void handle_message (MyContext *ctx, guint8 *buf, gsize size)
 {
     switch (ctx->req)
     {
-    case ADBP_TRACK_DEVICES:
+        case ADBP_TRACK_DEVICES:
         {
             g_debug ("track devices resp\n");
             handle_track_devices (ctx, buf, size);
             break;
         }
-    case ADBP_TRACK_DEVICES_SERIAL:
+        case ADBP_TRACK_DEVICES_SERIAL:
         {
             g_debug ("device serial resp");
             handle_track_devices_serial (ctx, buf, size);
             break;
         }
-    case ADBP_TRANSPORT_DEVICE:
+        case ADBP_TRANSPORT_DEVICE:
         {
             g_debug ("transport device resp\n");
             handle_transport_device (ctx, buf, size);
             break;
         }
-    case ADBP_FRAMEBUFFER:
+        case ADBP_FRAMEBUFFER:
         {
             g_debug ("framebuffer resp");
             handle_framebuffer (ctx, buf, size);
             break;
         }
-    case ADBP_IMAGE_HEADER:
+        case ADBP_IMAGE_HEADER:
         {
             g_debug ("image header after frame buffer OKAY message\n");
             ctx->start_time = g_get_real_time () / 1000;
             handle_image_header (ctx, buf, size);
             break;
         }
-    case ADBP_IMAGE_DATA:
+        case ADBP_IMAGE_DATA:
         {
             g_debug ("image data after first buffer\n");
             handle_image_data (ctx, buf, size);
             break;
         }
-    default:
+        default:
         {
             g_debug ("unexpected: %s", get_req_name (ctx->req));
             break;
         }
     }
 }
+
+/*
+ * handler for cases that need no special action
+ */
 
 void handle_common (MyContext *ctx, guint8 *buf, gsize size)
 {
@@ -794,6 +855,9 @@ void handle_common (MyContext *ctx, guint8 *buf, gsize size)
 
 gchar* get_state_name (State s)
 {
+    /*
+     * update according to header file
+     */
     static gchar *state_str[] = 
     {
         g_strdup ("UNINITIALIZED"),
@@ -812,6 +876,9 @@ gchar* get_state_name (State s)
 
 gchar* get_okay_str (ADBP_Service s)
 {
+    /*
+     * update according to header file
+     */
     static gchar *request_name[] = 
     {
         g_strdup ("NA"),
@@ -819,12 +886,7 @@ gchar* get_okay_str (ADBP_Service s)
         g_strdup ("OKAY"),
         g_strdup ("OKAY"),
         g_strdup ("NA"),
-        g_strdup ("OKAY"),
-        g_strdup ("OKAY"),
-        g_strdup ("OK."),
-        g_strdup ("OK:virgo"),
-        g_strdup ("OK."),
-        g_strdup ("OK."),
+        g_strdup ("NA"),
         g_strdup ("NA"),
         g_strdup ("NA"),
         g_strdup ("NA"),
@@ -842,11 +904,6 @@ gchar* get_req_name (ADBP_Service s)
         g_strdup ("host:transport_device"),
         g_strdup ("framebuffer"),
         g_strdup ("nudge"),
-        g_strdup ("forward"),
-        g_strdup ("shell monkey"),
-        g_strdup ("wake"),
-        g_strdup ("getvar"),
-        g_strdup ("quit"),
         g_strdup ("host:track_devices_serial"),
         g_strdup ("image_header"),
         g_strdup ("image_data"),
@@ -942,7 +999,6 @@ void connected_cb ( GObject *src_obj,
         }
         g_socket_set_blocking (s, FALSE);
         g_socket_set_keepalive (s, TRUE);
-        //g_io_channel_set_encoding (ctx->chan, NULL, NULL);
         ctx->source_id = g_io_add_watch (ctx->chan, G_IO_IN, channel_read_cb, ctx);
         
         if (NULL != ctx->queue)
@@ -964,6 +1020,9 @@ void connected_cb ( GObject *src_obj,
                 screenshot_routine (ctx);
             }
         }
+        /*
+         * FIN is handled
+         */
         ctx->fin_event = FALSE;
     }
     else
@@ -1041,7 +1100,6 @@ void write_cb ( GObject *src_obj,
     if (written > 1)
     {
          g_debug ("succeed to write %u bytes\n", written);
-         //ctx->socket_ready = TRUE;
     }
     else if (written == 1)
     {
@@ -1198,7 +1256,9 @@ int main (int argc, char **argv)
     my_ctx->queue = g_async_queue_new ();
     create_socketclient (my_ctx);
 
-    //prepare first message
+    /*
+     * prepare first message to trigger the state machine
+     */
 
     screenshot_routine (my_ctx);
 

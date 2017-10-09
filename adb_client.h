@@ -92,7 +92,7 @@ typedef struct _MyContext
 } MyContext;
 
 /*
- * for async io, we need a reading buffer for each a sync read 
+ * for async io, we need a reading buffer for each async read 
  * passing buffer to the callback
  */
 typedef struct _SnapShot

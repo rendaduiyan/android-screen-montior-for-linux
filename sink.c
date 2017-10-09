@@ -1,3 +1,10 @@
+/*
+ * sink.c, a udp forwarder in gstreamer for Linux PC to forward the continous sceenshot frame buffer
+ * 
+ * Copyright (c) 2017, haibolei <duiyanrenda@gmail.com>
+ * 
+ */
+
 #include "sink.h"
 
 static guint16 udp_port = 54321;
@@ -146,8 +153,8 @@ gboolean bus_cb (GstBus *bus, GstMessage *msg, gpointer user_data)
             gchar *debug_info = NULL;
 
             gst_message_parse_error (msg, &err, &debug_info);
-            //g_error ("Error received from element %s: %s", GST_OBJECT_NAME (msg->src),
-            //            err->message);
+            g_error ("Error received from element %s: %s", GST_OBJECT_NAME (msg->src),
+                        err->message);
             g_clear_error (&err);
             g_free (debug_info);
             g_main_loop_quit (sink->loop);
@@ -183,6 +190,10 @@ void push_data (SinkData *sink, guint8 *data, gsize size)
     GstBuffer *buffer = gst_buffer_new_wrapped (data, size);
 
     /*
+     * manully set timestamp for GstBuffers
+     * not necessary for now
+     * leave it here for possible needs
+
     GstClock *clock = gst_pipeline_get_clock (GST_PIPELINE (sink->pipeline));
     GstClockTime buffer_time = gst_clock_get_time (clock) - sink->initial_buffer_time;
     buffer_time = buffer_time / 1000000000 * 1000000000;
