@@ -51,12 +51,17 @@ Developing environment:
  Source files:
 * adb_client.h
 * adb_client.c
+
 Acting as a client to adb service and interface with adb to get the framebuffer based on ADB protocol.
+
 * sink.h
 * sink.c
+
 Gstreamer pipeline to convert the image data and send to remote player by use of udpsink.
+
 * player.h
 * player.c
+
 GStreamer pipeline to play the screenshots continuously by use of udpsrc.
 
  
